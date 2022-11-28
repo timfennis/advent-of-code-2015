@@ -22,14 +22,15 @@ fn line_to_dimension(line: &str) -> (u32, u32, u32) {
 }
 
 fn calculate_paper_size((w, h, l): (u32, u32, u32)) -> u32 {
-    let (s1, s2, s3) = (l * w, w * h, h * l);
-    let smallest = std::cmp::min(s1, std::cmp::min(s2, s3));
+    let sides = vec![l * w, w * h, h * l];
+    let smallest = *sides.iter().min().unwrap();
 
-    return 2 * s1 + 2 * s2 + 2 * s3 + smallest;
+    return sides.iter().fold(0, |t, a| t + 2 * a) + smallest;
 }
 
 fn calculate_ribbon_size((w, h, l): (u32, u32, u32)) -> u32 {
-    return std::cmp::min(w + w + h + h, std::cmp::min(h + h + l + l, w + w + l + l)) + w * h * l;
+    let r1 = *vec![w+w+h+h, h+h+l+l, w+w+l+l].iter().min().unwrap();
+    return r1 + w * h * l;
 }
 
 #[cfg(test)]
