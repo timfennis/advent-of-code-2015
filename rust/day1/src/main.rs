@@ -1,11 +1,5 @@
-use std::fs::File;
-use std::io::Read;
-
 fn main() {
-    let mut file = File::open("input").expect("Cannot read file");
-    let mut contents = String::new();
-
-    file.read_to_string(&mut contents).expect("Failed to read file");
+    let contents = std::fs::read_to_string("input").unwrap();
 
     let mut floor = 0;
     let mut i = 0;
