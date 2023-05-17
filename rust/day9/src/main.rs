@@ -1,6 +1,6 @@
 use arrayvec::ArrayVec;
+use std::cmp::{max, min};
 use std::collections::{HashMap, HashSet};
-use std::cmp::{min, max};
 
 type Graph = HashMap<(String, String), usize>;
 
@@ -44,8 +44,9 @@ fn path_contains_node(node: usize, path: usize) -> bool {
         || path >> 28 & 0xF == node
 }
 
-fn index_of(needle: &str, haystack: &Vec<&str>) -> usize {
+fn index_of(needle: &str, haystack: &HashSet<&str>) -> usize {
     let mut i = 1;
+
     for c in haystack {
         if c == &needle {
             return i;
@@ -57,21 +58,24 @@ fn index_of(needle: &str, haystack: &Vec<&str>) -> usize {
 }
 
 fn search(graph: &Graph) -> (usize, usize) {
+    // Walk the graph to figure out all potential points where we could start
+    // We dedup the points by collecting into a set
     let starting_points = graph
         .iter()
-        .flat_map(|((from, to), _)| vec![from, to])
+        .flat_map(|((from, to), _)| vec![from.as_str(), to.as_str()])
         .collect::<HashSet<_>>();
-
-    let starting_points = starting_points
-        .iter()
-        .map(|e| e.as_str())
-        .collect::<Vec<_>>();
 
     let point_count = starting_points.len();
 
+    // We're going to be using a usize as a stack of u4 ints, we need to ensure that no point
+    // index exceedes the value 16 otherwise numbers may overflow
     assert!(point_count < 16);
 
-    // Create a graph that can be searched quickly
+    // Pack the graph into a Vec<usize> like this:
+    // 0000000000000000 0000000000000000 0000000000000000 0000000000000000
+    //                     from_index        to_index         distance
+    // The theory behind this is that this vec is much faster to traverse than other datastructures
+    // with tuples etc
     let graph = graph
         .iter()
         .map(|((from, to), distance)| {
@@ -81,35 +85,48 @@ fn search(graph: &Graph) -> (usize, usize) {
         })
         .collect::<Vec<usize>>();
 
-    let mut buffer = ArrayVec::<(usize, usize), 32>::new();
+    // We are cheating a little here because we've determined ahead of time that the buffer will
+    // never exceed the capacity of 32 removing the need to reallocate the buffer while running
+    let mut buffer = Vec::<(usize, usize)>::with_capacity(32);
 
-    for (idx, _start) in starting_points.iter().enumerate() {
-        buffer.push((idx + 1, 0));
+    // Put every index between 1 and the point_count in the buffer to consider every points as
+    // a potential starting point
+    for idx in 1..=point_count {
+        buffer.push((idx, 0));
     }
 
     let mut best = usize::MAX;
     let mut worst = 0;
 
     while let Some((cur_path, cur_dist)) = buffer.pop() {
-        // If the current path is a complete path (it includes all locations at least once we
-        // can use its length to figure out if it's the the best or worst
-        if cur_path >> ((point_count - 1) * 4) > 0 {
-            best = min(best, cur_dist);
-            worst = max(worst, cur_dist);
-            continue;
-        }
-
-        // Based on our current location find all the locations we can move to
-        // For every potential destination figure out if we've already been there
-        // if not add the new path to the search buffer
+        // Based on our current location find all the locations we can move to for every potential
+        // destination figure out if we've already been there, if not we add the new path to the
+        // search buffer
         for &packed in &graph {
             let new_dest = (packed >> 16) & 0xFFFF;
-            if (packed >> 32) == (cur_path & 0xF) && !path_contains_node(new_dest, cur_path) {
-                // Determine the new path by multiplying by 16 (or shifting left 4 times)
-                let new_path = (cur_path << 4) + new_dest;
 
-                // Add the new path to the sarch buffer
-                buffer.push((new_path, cur_dist + (packed & 0xFFFF)));
+            // Find all entries in the graph that have our current point as a starting point and
+            // who's destination is not already part of the current path. We can find the current
+            // point by performing a bitwise AND between the current path and 0xF (get the last 4
+            // bits)
+            if (packed >> 32) == (cur_path & 0xF) && !path_contains_node(new_dest, cur_path) {
+                // If we haven't traveled here yet we can add the new destination to the path
+                let new_path = (cur_path << 4) + new_dest;
+                let new_dist = (packed & 0xFFFF) + cur_dist;
+
+                // If the current path is a complete path (it includes all locations at least once,
+                // we can use its length to figure out if it's the the best or worst
+                // HACK: we rightshift the current path by `point_count + 1 * 4` and check if these
+                //       bits are set by comparing against 0 to see if this is a complete path.
+                //       This only works because 0 isn't a valid point index
+                if new_path >> ((point_count - 1) * 4) > 0 {
+                    best = min(best, new_dist);
+                    worst = max(worst, new_dist);
+                } else {
+                    // Add the new path to the end of the search buffer and add the distance
+                    // between the nodes to the distance value
+                    buffer.push((new_path, new_dist));
+                }
             }
         }
     }
