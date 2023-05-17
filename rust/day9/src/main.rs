@@ -1,5 +1,6 @@
 use arrayvec::ArrayVec;
 use std::collections::{HashMap, HashSet};
+use std::cmp::{min, max};
 
 type Graph = HashMap<(String, String), usize>;
 
@@ -93,15 +94,9 @@ fn search(graph: &Graph) -> (usize, usize) {
         // If the current path is a complete path (it includes all locations at least once we
         // can use its length to figure out if it's the the best or worst
         if cur_path >> ((point_count - 1) * 4) > 0 {
-            if cur_dist < best {
-                best = cur_dist;
-                continue;
-            }
-
-            if cur_dist > worst {
-                worst = cur_dist;
-                continue;
-            }
+            best = min(best, cur_dist);
+            worst = max(worst, cur_dist);
+            continue;
         }
 
         // Based on our current location find all the locations we can move to
