@@ -11,9 +11,9 @@ fn main() -> anyhow::Result<()> {
     let mut password = Password::from_str(&input)?;
 
     println!("Input: {}", password);
-    password.next();
+    password.next_valid();
     println!("Next:  {}", password);
-    password.next();
+    password.next_valid();
     println!("Next:  {}", password);
 
     Ok(())
@@ -66,7 +66,7 @@ impl Password {
         false
     }
 
-    fn next(&mut self) {
+    pub fn next_valid(&mut self) {
         self.increment();
         while !self.is_valid() {
             self.increment();
@@ -80,6 +80,24 @@ impl Password {
                 _ => {
                     self.data[i] += 1;
                     break;
+                }
+            }
+        }
+
+        // Optimization to quickly skip lots of invalid password
+        // goes from oooooooo directly to paaaaaaa
+        let mut zero_out = false;
+        for i in 0..8 {
+            if zero_out {
+                self.data[i] = 0;
+            } else {
+                let n = self.data[i];
+                if n == ('i' as u8 - 'a' as u8)
+                    || n == ('o' as u8 - 'a' as u8)
+                    || n == ('l' as u8 - 'a' as u8)
+                {
+                    self.data[i] += 1;
+                    zero_out = true;
                 }
             }
         }
