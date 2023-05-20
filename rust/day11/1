@@ -1,0 +1,23 @@
+use core::str::FromStr;
+
+fn main() {
+    let input = std::env::args().nth(1).expect("You must give an input password");
+    println!("{input}");
+}
+
+struct Password {
+    data: [u8; 8]
+}
+
+impl FromStr for Password {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let out = [0u8; 8];
+        assert_eq!(s.len(), 8);
+        for (i, c) in s.chars().enumerate() {
+            assert!(c.is_alphabetic());
+
+        }
+    }
+}
