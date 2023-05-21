@@ -6,30 +6,16 @@ use std::collections::HashSet;
 use std::str::FromStr;
 
 fn main() -> anyhow::Result<()> {
-    let rules = include_str!("../input")
+    let mut rules = include_str!("../input")
         .lines()
         .map(|line| line.parse::<Rule>())
         .collect::<Result<Vec<_>, _>>()?;
 
-    let people = rules
-        .iter()
-        .map(|rule| rule.subject.as_str())
-        .collect::<HashSet<_>>();
-
-    let mut first_best = 0i64;
-    let mut first_worst = i64::max_value();
-
-    for perm in people.iter().permutations(people.len()) {
-        let score = score(&perm, &rules);
-        first_best = std::cmp::max(first_best, score);
-        first_worst = std::cmp::min(first_worst, score);
-    }
-
-    println!("Best: {first_best}\nWorst: {first_worst}");
+    let (best, worst) = find_optimal_arrangements(&rules);
+    println!("--- Part 1 ---\nBest: {}\nWorst: {}", best, worst);
 
     // Part 2
-    let mut rules = rules.clone();
-    for person in people {
+    for person in find_people(&rules) {
         rules.push(Rule {
             subject: person.to_string(),
             amount: 0,
@@ -41,33 +27,38 @@ fn main() -> anyhow::Result<()> {
             target: person.to_string(),
         });
     }
-
-    let people = rules
-        .iter()
-        .map(|rule| rule.subject.as_str())
-        .collect::<HashSet<_>>();
-
-    let mut second_best = 0i64;
-    let mut second_worst = i64::max_value();
-
-    for perm in people.iter().permutations(people.len()) {
-        let score = score(&perm, &rules);
-        second_best = std::cmp::max(second_best, score);
-        second_worst = std::cmp::min(second_worst, score);
-    }
-
-    println!("Best: {second_best}\nWorst: {second_worst}");
+    
+    let (best, worst) = find_optimal_arrangements(&rules);
+    println!("--- Part 2 ---\nBest: {}\nWorst: {}", best, worst);
     Ok(())
 }
 
-fn score(order: &[&&str], rules: &[Rule]) -> i64 {
+fn find_people(rules: &[Rule]) -> HashSet<String> {
+    rules.iter().map(|rule| rule.subject.to_string()).collect::<HashSet<_>>()
+}
+
+fn find_optimal_arrangements(rules: &[Rule]) -> (i64, i64) 
+{
+    let mut best = 0i64;
+    let mut worst = i64::max_value();
+    let people = find_people(&rules);
+    for perm in people.iter().permutations(people.len()) {
+        let score = score(&perm[..], &rules);
+        best = std::cmp::max(best, score);
+        worst = std::cmp::min(worst, score);
+    }
+
+    (best, worst)
+}
+
+fn score(order: &[&String], rules: &[Rule]) -> i64 {
     let mut score = 0;
-    for (&&a, &&b, &&c) in order.iter().circular_tuple_windows() {
+    for (&a, &b, &c) in order.iter().circular_tuple_windows() {
         for rule in rules {
-            if b == rule.subject {
-                if a == rule.target {
+            if *b == rule.subject {
+                if *a == rule.target {
                     score += rule.amount as i64;
-                } else if c == rule.target {
+                } else if *c == rule.target {
                     score += rule.amount as i64;
                 }
             }
